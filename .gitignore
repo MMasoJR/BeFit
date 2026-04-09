@@ -23,6 +23,7 @@ build/
 # SEGURANÇA (Variáveis de Ambiente)
 .env
 .env.*
+*.db
 !.env.example 
 
 # SISTEMA OPERACIONAL E EDITORES
