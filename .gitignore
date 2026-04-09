@@ -1,0 +1,34 @@
+# BACKEND (Python / FastAPI)
+# Ignora arquivos compilados do Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Ignora os ambientes virtuais
+venv/
+env/
+.venv/
+
+# FRONTEND (Next.js / Node.js)
+# Ignora os pacotes do Node
+node_modules/
+npm-debug.log
+yarn-error.log
+
+# Ignora as pastas de build geradas pelo Next.js
+.next/
+out/
+build/
+
+# SEGURANÇA (Variáveis de Ambiente)
+.env
+.env.*
+!.env.example 
+
+# SISTEMA OPERACIONAL E EDITORES
+# Arquivos ocultos gerados por Mac e Windows
+.DS_Store
+Thumbs.db
+
+# Configurações locais do seu VS Code
+.vscode/
