@@ -1,98 +1,158 @@
-# backend/app/main.py
 from fastapi import FastAPI, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
-from app.db.database import engine, Base, get_db
-from app.models import models
-from app.schemas import schemas
+from pydantic import BaseModel
+from typing import List
+
+# Importes internos do seu projeto
+from app.models import models # Importa o arquivo models.py de dentro da pasta models
+from app.db.database import SessionLocal, engine # Importa do arquivo database.py dentro da pasta db
+from app.service.ai_service import gerar_treino # Importa do arquivo ai_service.py dentro da pasta service
 
 # Cria as tabelas no banco de dados se elas não existirem
 models.Base.metadata.create_all(bind=engine)
 
-# Inicializando a aplicação
-app = FastAPI(
-    title="API BeFit",
-    description="Backend para geração de treinos com IA"
-)
+app = FastAPI(title="BeFit API - Gestão de Treinos com IA")
 
-# CONFIGURAÇÃO DE CORS
-# Isso permite que o frontend (Next.js na porta 3000) consiga conversar com a API
+# Configuração de CORS para permitir que o Next.js (Porta 3001) acesse a API
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:3000", 
-        "http://localhost:3001"
-    ], 
+    allow_origins=["http://localhost:3000", "http://localhost:3001"],
     allow_credentials=True,
-    allow_methods=["*"], 
+    allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# ==========================================
-# ROTAS DE TESTE
-# ==========================================
-@app.get("/")
-def read_root():
-    return {"mensagem": "API do sistema de treinos está rodando!"}
+# Dependência para abrir/fechar a conexão com o banco de dados
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
 
-@app.get("/status")
-def health_check():
-    return {"status": "ok", "banco_de_dados": "conectado (sqlite)", "ia": "pendente"}
+# ==========================================
+# ESQUEMAS DE DADOS (Pydantic)
+# ==========================================
+
+class AcademiaCreate(BaseModel):
+    nome: str
+    email: str
+    senha: str
+
+class AcademiaResponse(BaseModel):
+    id: int
+    nome: str
+    class Config:
+        from_attributes = True
+
+class AlunoCreate(BaseModel):
+    nome: str
+    objetivo: str
+    academia_id: int
+
+class AlunoResponse(BaseModel):
+    id: int
+    nome: str
+    objetivo: str
+    academia_id: int
+    class Config:
+        from_attributes = True
+
+class PedidoTreino(BaseModel):
+    academia_id: int
+    aluno_id: int
+    perfil_aluno: str # Descrição adicional (ex: "estou com dor no joelho hoje")
+
+class SalvarTreinoRequest(BaseModel):
+    aluno_id: int
+    treino_gerado: str
 
 # ==========================================
 # ROTAS DE ACADEMIA
 # ==========================================
-@app.post("/academias/", response_model=schemas.AcademiaResponse)
-def criar_academia(academia: schemas.AcademiaCreate, db: Session = Depends(get_db)):
-    """Rota para cadastrar uma nova academia no sistema."""
-    
-    # 1. Verifica se o email já existe no banco
-    db_academia = db.query(models.Academia).filter(models.Academia.email == academia.email).first()
-    if db_academia:
-        raise HTTPException(status_code=400, detail="Email já cadastrado no sistema.")
 
-    # 2. Prepara os dados para salvar
+@app.post("/academias/", response_model=AcademiaResponse)
+def criar_academia(academia: AcademiaCreate, db: Session = Depends(get_db)):
+    # Criamos a academia com alguns equipamentos padrão para teste
     nova_academia = models.Academia(
         nome=academia.nome,
-        email=academia.email,
-        senha_hash=academia.senha + "_hash_temporario" # TODO: Implementar segurança real depois
+        equipamentos="Supino Reto, Cadeira Extensora, Halteres" # Equipamentos iniciais
     )
-
-    # 3. Salva no banco de dados
     db.add(nova_academia)
     db.commit()
     db.refresh(nova_academia)
-
     return nova_academia
 
 # ==========================================
-# ROTAS DE EQUIPAMENTO
+# ROTAS DE ALUNOS
 # ==========================================
-@app.post("/equipamentos/", response_model=schemas.EquipamentoResponse)
-def cadastrar_equipamento(equipamento: schemas.EquipamentoCreate, db: Session = Depends(get_db)):
-    """Cadastra um novo equipamento vinculado a uma academia."""
-    
-    # 1. Verifica se a academia realmente existe antes de cadastrar a máquina
-    db_academia = db.query(models.Academia).filter(models.Academia.id == equipamento.academia_id).first()
-    if not db_academia:
-        raise HTTPException(status_code=404, detail="Academia não encontrada.")
 
-    # 2. Salva o equipamento no banco
-    novo_equipamento = models.Equipamento(
-        nome=equipamento.nome,
-        grupo_muscular=equipamento.grupo_muscular,
-        academia_id=equipamento.academia_id
+@app.post("/alunos/", response_model=AlunoResponse)
+def cadastrar_aluno(aluno: AlunoCreate, db: Session = Depends(get_db)):
+    novo_aluno = models.Aluno(
+        nome=aluno.nome,
+        objetivo=aluno.objetivo,
+        academia_id=aluno.academia_id
     )
-    
-    db.add(novo_equipamento)
+    db.add(novo_aluno)
     db.commit()
-    db.refresh(novo_equipamento)
+    db.refresh(novo_aluno)
+    return novo_aluno
 
-    return novo_equipamento
+@app.get("/academias/{id_academia}/alunos", response_model=List[AlunoResponse])
+def listar_alunos_da_academia(id_academia: int, db: Session = Depends(get_db)):
+    return db.query(models.Aluno).filter(models.Aluno.academia_id == id_academia).all()
 
-@app.get("/academias/{academia_id}/equipamentos", response_model=list[schemas.EquipamentoResponse])
-def listar_equipamentos_da_academia(academia_id: int, db: Session = Depends(get_db)):
-    """Lista todos os equipamentos de uma academia específica."""
+# ==========================================
+# ROTAS DE IA E TREINOS
+# ==========================================
+
+@app.post("/treinos/gerar")
+def endpoint_gerar_treino(pedido: PedidoTreino, db: Session = Depends(get_db)):
+    # 1. Busca a academia e seus equipamentos
+    academia = db.query(models.Academia).filter(models.Academia.id == pedido.academia_id).first()
+    if not academia:
+        raise HTTPException(status_code=404, detail="Academia não encontrada")
     
-    equipamentos = db.query(models.Equipamento).filter(models.Equipamento.academia_id == academia_id).all()
-    return equipamentos
+    # 2. Busca os dados do aluno para dar contexto à IA
+    aluno = db.query(models.Aluno).filter(models.Aluno.id == pedido.aluno_id).first()
+    if not aluno:
+        raise HTTPException(status_code=404, detail="Aluno não encontrado")
+
+    # 3. Monta o perfil completo para o Gemini
+    perfil_completo = f"Nome: {aluno.nome}. Objetivo principal: {aluno.objetivo}. Detalhes adicionais: {pedido.perfil_aluno}"
+    
+    # 4. Chama o serviço de IA
+    lista_equipamentos = academia.equipamentos.split(", ")
+    treino_texto = gerar_treino(perfil_completo, lista_equipamentos)
+    
+    return {
+        "treino": treino_texto, 
+        "equipamentos_utilizados": lista_equipamentos,
+        "aluno_nome": aluno.nome
+    }
+
+@app.post("/treinos/salvar")
+def endpoint_salvar_treino(dados: SalvarTreinoRequest, db: Session = Depends(get_db)):
+    nova_ficha = models.FichaTreino(
+        aluno_id=dados.aluno_id,
+        treino_gerado=dados.treino_gerado
+    )
+    db.add(nova_ficha)
+    db.commit()
+    return {"status": "sucesso", "mensagem": "Treino salvo no histórico do aluno!"}
+
+@app.get("/alunos/{id_aluno}/historico")
+def ver_historico_aluno(id_aluno: int, db: Session = Depends(get_db)):
+    fichas = db.query(models.FichaTreino).filter(models.FichaTreino.aluno_id == id_aluno).all()
+    return fichas
+
+@app.get("/academias/{id_academia}/alunos/buscar")
+def buscar_aluno_por_nome(id_academia: int, nome: str, db: Session = Depends(get_db)):
+    # O filter(models.Aluno.nome.contains(nome)) permite buscar nomes parciais (ex: "Jo" traz "João")
+    alunos = db.query(models.Aluno.models).filter(
+        models.Aluno.models.academia_id == id_academia,
+        models.Aluno.models.nome.contains(nome)
+    ).all()
+    return alunos

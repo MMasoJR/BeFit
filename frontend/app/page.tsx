@@ -1,38 +1,37 @@
-"use client"; // Isso diz ao Next.js que esta página interage com o usuário
+"use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation"; // 1. Importe o roteador
 
 export default function Home() {
+  const router = useRouter(); // 2. Inicialize o hook
   const [nome, setNome] = useState("");
   const [email, setEmail] = useState("");
   const [senha, setSenha] = useState("");
   const [mensagem, setMensagem] = useState("");
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault(); // Evita que a página recarregue
+    e.preventDefault();
+    setMensagem("Processando...");
 
     try {
-      // Aqui fazemos a chamada para a nossa API em Python!
       const response = await fetch("http://127.0.0.1:8000/academias/", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ nome, email, senha }),
       });
 
       if (response.ok) {
         const data = await response.json();
-        setMensagem(`Sucesso! Academia ${data.nome} cadastrada com ID: ${data.id}`);
-        // Limpa os campos após o sucesso
-        setNome("");
-        setEmail("");
-        setSenha("");
+        
+        // 3. Em vez de apenas mostrar a mensagem, vamos navegar!
+        // Passamos o ID da academia recém-criada na URL
+        router.push(`/painel?id=${data.id}`); 
       } else {
-        setMensagem("Erro ao cadastrar academia. Verifique se o e-mail já existe.");
+        setMensagem("Erro ao cadastrar. Verifique os dados.");
       }
     } catch (error) {
-      setMensagem("Erro de conexão com o servidor. O backend está rodando?");
+      setMensagem("Erro de conexão com o servidor.");
     }
   };
 
@@ -40,7 +39,7 @@ export default function Home() {
     <div className="min-h-screen bg-gray-900 flex flex-col items-center justify-center p-6 text-white">
       <div className="max-w-md w-full bg-gray-800 rounded-xl shadow-lg p-8">
         <h1 className="text-3xl font-bold text-center mb-6 text-blue-400">BeFit Admin</h1>
-        <p className="text-center text-gray-400 mb-8">Cadastre sua academia no sistema</p>
+        <p className="text-center text-gray-400 mb-8">Cadastre sua academia para começar</p>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
@@ -83,7 +82,7 @@ export default function Home() {
             type="submit" 
             className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg transition-colors mt-6"
           >
-            Cadastrar Academia
+            Cadastrar e Entrar
           </button>
         </form>
 
