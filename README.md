@@ -81,7 +81,7 @@
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/befit.git
+git clone https://github.com/MMasoJR/befit.git
 cd befit/backend
 
 # Create and activate virtual environment
@@ -168,10 +168,10 @@ befit/
 
 ## 👨‍💻 Author
 
-**Marcelo Maso**
+**Marcelo Junior**
 AI Developer | FIAP — Tecnólogo em Inteligência Artificial
-[LinkedIn](https://linkedin.com/in/yourusername) · [GitHub](https://github.com/yourusername)
+[LinkedIn]((https://www.linkedin.com/in/marcelo-junior-b30907367/)) · [GitHub](https://github.com/MMasoJR)
 
 ---
 
-*Full-stack production-ready project | FIAP 2025*
+*Full-stack production project*
