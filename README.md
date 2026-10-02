@@ -10,8 +10,10 @@
 > Full-stack gym management platform with AI-powered workout recommendations via Google Gemini, secure JWT authentication, and a modern Next.js/TypeScript frontend.
 
 ---
+
 ## ⚠️ Project development was paused and not completed. ⚠️
 
+---
 
 ## 🎯 Features
 
